@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "DocuMind — Document Q&A",
   description:
     "Upload documents, ask questions, get cited answers with confidence scoring and hallucination guardrails.",
+  icons: { icon: "/logo.png" },
 };
 
 export default function RootLayout({

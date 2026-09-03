@@ -4,7 +4,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     GOOGLE_API_KEY: str = ""
-    MAX_FILE_SIZE_MB: int = 10
+    MAX_FILE_SIZE_MB: int = 25
     CHUNK_SIZE: int = 500
     CHUNK_OVERLAP: int = 50
     CHROMA_PERSIST_DIR: str = "./chroma_data"

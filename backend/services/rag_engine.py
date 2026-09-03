@@ -17,13 +17,13 @@ RULES:
 6. If multiple pages discuss the topic, synthesize the information and cite all relevant pages."""
 
 
-def query_documents(question: str) -> dict:
+def query_documents(question: str, session_id: str) -> dict:
     """Run the full RAG pipeline: embed query -> retrieve -> generate answer."""
     # Step 1: Embed the question
     query_embedding = embed_query(question)
 
     # Step 2: Retrieve top chunks from vector store
-    results = vector_query(query_embedding, n_results=settings.TOP_K_RESULTS)
+    results = vector_query(session_id, query_embedding, n_results=settings.TOP_K_RESULTS)
 
     if not results["documents"] or not results["documents"][0]:
         return {

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from services.rag_engine import query_documents
 from services.guardrails import evaluate
@@ -14,13 +14,13 @@ class QueryRequest(BaseModel):
 
 
 @router.post("/query")
-async def query(req: QueryRequest):
+async def query(req: QueryRequest, session_id: str = Header(alias="X-Session-ID", default="default")):
     """Ask a question against uploaded documents."""
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
 
     # Check if any documents exist
-    stats = get_stats()
+    stats = get_stats(session_id)
     if stats["total_chunks"] == 0:
         raise HTTPException(
             status_code=400,
@@ -29,7 +29,7 @@ async def query(req: QueryRequest):
 
     # Run RAG pipeline
     try:
-        rag_result = query_documents(req.question)
+        rag_result = query_documents(req.question, session_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
 

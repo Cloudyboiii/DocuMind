@@ -1,7 +1,7 @@
 import traceback
 import uuid
 import pdfplumber
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Header
 from config import get_settings
 from services.chunker import chunk_document
 from services.embedder import embed_texts
@@ -10,12 +10,15 @@ from services.vector_store import add_chunks, get_all_documents, delete_document
 router = APIRouter(tags=["Documents"])
 settings = get_settings()
 
-# In-memory filename map (document_id -> filename)
-_doc_names: dict[str, str] = {}
+# In-memory filename map (session_id -> document_id -> filename)
+_doc_names: dict[str, dict[str, str]] = {}
 
 
 @router.post("/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(
+    file: UploadFile = File(...),
+    session_id: str = Header(alias="X-Session-ID", default="default")
+):
     """Upload a PDF, extract text, chunk, embed, and store in vector DB."""
     try:
         # Validate file type
@@ -63,10 +66,12 @@ async def upload_document(file: UploadFile = File(...)):
         embeddings = embed_texts(texts, task_type="retrieval_document")
 
         # Store in vector DB
-        add_chunks(chunks, embeddings)
+        add_chunks(session_id, chunks, embeddings)
 
         # Save filename
-        _doc_names[document_id] = file.filename
+        if session_id not in _doc_names:
+            _doc_names[session_id] = {}
+        _doc_names[session_id][document_id] = file.filename
 
         return {
             "document_id": document_id,
@@ -83,17 +88,19 @@ async def upload_document(file: UploadFile = File(...)):
 
 
 @router.get("/documents")
-async def list_documents():
+async def list_documents(session_id: str = Header(alias="X-Session-ID", default="default")):
     """List all uploaded documents."""
-    docs = get_all_documents()
+    docs = get_all_documents(session_id)
+    session_docs = _doc_names.get(session_id, {})
     for doc in docs:
-        doc["filename"] = _doc_names.get(doc["document_id"], "Unknown")
+        doc["filename"] = session_docs.get(doc["document_id"], "Unknown")
     return {"documents": docs}
 
 
 @router.delete("/documents/{document_id}")
-async def remove_document(document_id: str):
+async def remove_document(document_id: str, session_id: str = Header(alias="X-Session-ID", default="default")):
     """Delete a document and its chunks from the vector store."""
-    delete_document(document_id)
-    _doc_names.pop(document_id, None)
+    delete_document(session_id, document_id)
+    if session_id in _doc_names:
+        _doc_names[session_id].pop(document_id, None)
     return {"status": "deleted", "document_id": document_id}

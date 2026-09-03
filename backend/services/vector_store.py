@@ -4,15 +4,18 @@ from config import get_settings
 settings = get_settings()
 
 _client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIR)
-_collection = _client.get_or_create_collection(
-    name="documents",
-    metadata={"hnsw:space": "cosine"},
-)
 
 
-def add_chunks(chunks: list[dict], embeddings: list[list[float]]) -> None:
+def _get_collection(session_id: str):
+    return _client.get_or_create_collection(
+        name=f"session_{session_id}",
+        metadata={"hnsw:space": "cosine"},
+    )
+
+
+def add_chunks(session_id: str, chunks: list[dict], embeddings: list[list[float]]) -> None:
     """Add chunks and their embeddings to the vector store."""
-    _collection.add(
+    _get_collection(session_id).add(
         ids=[c["chunk_id"] for c in chunks],
         embeddings=embeddings,
         documents=[c["text"] for c in chunks],
@@ -27,9 +30,9 @@ def add_chunks(chunks: list[dict], embeddings: list[list[float]]) -> None:
     )
 
 
-def query(query_embedding: list[float], n_results: int = 8) -> dict:
+def query(session_id: str, query_embedding: list[float], n_results: int = 8) -> dict:
     """Query the vector store for the most similar chunks."""
-    results = _collection.query(
+    results = _get_collection(session_id).query(
         query_embeddings=[query_embedding],
         n_results=n_results,
         include=["documents", "metadatas", "distances"],
@@ -37,34 +40,37 @@ def query(query_embedding: list[float], n_results: int = 8) -> dict:
     return results
 
 
-def delete_document(document_id: str) -> None:
+def delete_document(session_id: str, document_id: str) -> None:
     """Delete all chunks belonging to a document."""
-    results = _collection.get(
+    coll = _get_collection(session_id)
+    results = coll.get(
         where={"document_id": document_id},
         include=[],
     )
     if results["ids"]:
-        _collection.delete(ids=results["ids"])
+        coll.delete(ids=results["ids"])
 
 
-def get_stats() -> dict:
+def get_stats(session_id: str) -> dict:
     """Return store statistics."""
-    total = _collection.count()
+    coll = _get_collection(session_id)
+    total = coll.count()
     if total == 0:
         return {"total_chunks": 0, "unique_documents": 0}
 
-    all_meta = _collection.get(include=["metadatas"])
+    all_meta = coll.get(include=["metadatas"])
     doc_ids = set(m["document_id"] for m in all_meta["metadatas"])
     return {"total_chunks": total, "unique_documents": len(doc_ids)}
 
 
-def get_all_documents() -> list[dict]:
+def get_all_documents(session_id: str) -> list[dict]:
     """Return a list of unique documents with their metadata."""
-    total = _collection.count()
+    coll = _get_collection(session_id)
+    total = coll.count()
     if total == 0:
         return []
 
-    all_data = _collection.get(include=["metadatas"])
+    all_data = coll.get(include=["metadatas"])
     docs = {}
     for meta in all_data["metadatas"]:
         doc_id = meta["document_id"]

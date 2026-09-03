@@ -38,6 +38,12 @@ def _embed_batch_with_retry(texts: list[str], task_type: str) -> list[list[float
             )
             return result["embedding"]
         except Exception as e:
+            if "task_type" in str(e).lower() or "not supported" in str(e).lower():
+                result = genai.embed_content(
+                    model=f"models/{settings.EMBEDDING_MODEL}",
+                    content=texts,
+                )
+                return result["embedding"]
             if "429" in str(e) and attempt < MAX_RETRIES - 1:
                 wait = 2 ** (attempt + 1)
                 time.sleep(wait)

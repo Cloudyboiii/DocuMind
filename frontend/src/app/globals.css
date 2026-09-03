@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+body {
+  font-family: "Inter", system-ui, sans-serif;
+  background-color: #0f1117;
+  color: #e4e4e7;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 3px;
+}
+
+/* Markdown prose inside AI answers */
+.prose-ai h1,
+.prose-ai h2,
+.prose-ai h3 {
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+  color: #f4f4f5;
+}
+.prose-ai p {
+  margin-bottom: 0.6em;
+  line-height: 1.65;
+}
+.prose-ai ul,
+.prose-ai ol {
+  margin-left: 1.2em;
+  margin-bottom: 0.6em;
+}
+.prose-ai li {
+  margin-bottom: 0.25em;
+}
+.prose-ai code {
+  background: #1e1e2e;
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  font-size: 0.88em;
+}
+.prose-ai strong {
+  color: #f4f4f5;
+}

@@ -72,44 +72,55 @@ export default function Home() {
   }, [error]);
 
   /* ---- Upload ---- */
-  const handleUpload = useCallback(async (file: File) => {
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setError("Only PDF files are accepted.");
-      return;
+  const handleUpload = useCallback(async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    const total = fileArray.length;
+    if (total === 0) return;
+
+    for (let i = 0; i < total; i++) {
+      const file = fileArray[i];
+      if (!file.name.toLowerCase().endsWith(".pdf")) {
+        setError(`File ${file.name} is not a PDF.`);
+        continue;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setError(`File ${file.name} exceeds 10 MB limit.`);
+        continue;
+      }
+      try {
+        setUploading(`Uploading ${i + 1} of ${total}...`);
+        const processingTimeout = setTimeout(() => setUploading(`Processing ${i + 1} of ${total}...`), 800);
+        
+        const result = await uploadDocument(file);
+        clearTimeout(processingTimeout);
+        
+        setDocs((prev) => [
+          ...prev,
+          {
+            document_id: result.document_id,
+            filename: result.filename,
+            pages: result.pages,
+            chunks: result.chunks,
+          },
+        ]);
+      } catch (e: any) {
+        setError(e.message || `Upload failed for ${file.name}.`);
+      }
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError("File exceeds 10 MB limit.");
-      return;
-    }
-    try {
-      setUploading("uploading");
-      setTimeout(() => setUploading("processing"), 800);
-      const result = await uploadDocument(file);
-      setUploading("done");
-      setDocs((prev) => [
-        ...prev,
-        {
-          document_id: result.document_id,
-          filename: result.filename,
-          pages: result.pages,
-          chunks: result.chunks,
-        },
-      ]);
-      setTimeout(() => {
-        setShowUpload(false);
-        setUploading(null);
-      }, 1000);
-    } catch (e: any) {
-      setError(e.message || "Upload failed.");
+    
+    setUploading("Done!");
+    setTimeout(() => {
+      setShowUpload(false);
       setUploading(null);
-    }
+    }, 1000);
   }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      const file = e.dataTransfer.files[0];
-      if (file) handleUpload(file);
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleUpload(e.dataTransfer.files);
+      }
     },
     [handleUpload]
   );
@@ -467,17 +478,19 @@ export default function Home() {
                   />
                 </svg>
                 <p className="text-sm text-zinc-400 mb-1">
-                  Drag &amp; drop a PDF or click to browse
+                  Drag &amp; drop PDFs or click to browse
                 </p>
-                <p className="text-xs text-zinc-600">Max 10 MB</p>
+                <p className="text-xs text-zinc-600">Max 10 MB per file</p>
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept=".pdf"
+                  multiple
                   className="hidden"
                   onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleUpload(file);
+                    if (e.target.files && e.target.files.length > 0) {
+                      handleUpload(e.target.files);
+                    }
                   }}
                 />
               </div>
@@ -485,9 +498,7 @@ export default function Home() {
               <div className="py-8 text-center">
                 <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                 <p className="text-sm text-zinc-300">
-                  {uploading === "uploading" && "Uploading file..."}
-                  {uploading === "processing" && "Processing & embedding..."}
-                  {uploading === "done" && "Done!"}
+                  {uploading}
                 </p>
               </div>
             )}

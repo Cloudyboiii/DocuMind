@@ -1,4 +1,5 @@
 import time
+import re
 import google.generativeai as genai
 from config import get_settings
 
@@ -6,7 +7,7 @@ settings = get_settings()
 genai.configure(api_key=settings.GOOGLE_API_KEY)
 
 BATCH_SIZE = 100
-MAX_RETRIES = 3
+MAX_RETRIES = 5
 
 
 def embed_texts(texts: list[str], task_type: str = "retrieval_document") -> list[list[float]]:
@@ -17,6 +18,8 @@ def embed_texts(texts: list[str], task_type: str = "retrieval_document") -> list
         batch = texts[i : i + BATCH_SIZE]
         embeddings = _embed_batch_with_retry(batch, task_type)
         all_embeddings.extend(embeddings)
+        if i + BATCH_SIZE < len(texts):
+            time.sleep(1)
 
     return all_embeddings
 
@@ -45,7 +48,13 @@ def _embed_batch_with_retry(texts: list[str], task_type: str) -> list[list[float
                 )
                 return result["embedding"]
             if "429" in str(e) and attempt < MAX_RETRIES - 1:
-                wait = 2 ** (attempt + 1)
+                wait = 10 * (2 ** attempt)
+                match = re.search(r'(\d+(?:\.\d+)?)\s*(?:s|second)', str(e).lower())
+                if match:
+                    try:
+                        wait = float(match.group(1))
+                    except ValueError:
+                        pass
                 time.sleep(wait)
             else:
                 raise e

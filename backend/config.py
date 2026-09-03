@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = 500
     CHUNK_OVERLAP: int = 50
     CHROMA_PERSIST_DIR: str = "./chroma_data"
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-3.6-flash"
     EMBEDDING_MODEL: str = "gemini-embedding-001"
     TOP_K_RESULTS: int = 8
 

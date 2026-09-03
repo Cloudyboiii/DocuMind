@@ -44,26 +44,24 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
-  const [uploading, setUploading] = useState<string | null>(null); // null | "uploading" | "processing" | "done"
+  const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [dragging, setDragging] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch docs on mount
   useEffect(() => {
     getDocuments()
       .then((res) => setDocs(res.documents))
       .catch(() => {});
   }, []);
 
-  // Auto scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // Clear error after 5s
   useEffect(() => {
     if (error) {
       const t = setTimeout(() => setError(null), 5000);
@@ -72,60 +70,49 @@ export default function Home() {
   }, [error]);
 
   /* ---- Upload ---- */
-  const handleUpload = useCallback(async (files: FileList | File[]) => {
-    const fileArray = Array.from(files);
-    const total = fileArray.length;
-    if (total === 0) return;
-
-    for (let i = 0; i < total; i++) {
-      const file = fileArray[i];
-      if (!file.name.toLowerCase().endsWith(".pdf")) {
-        setError(`File ${file.name} is not a PDF.`);
-        continue;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        setError(`File ${file.name} exceeds 10 MB limit.`);
-        continue;
-      }
-      try {
-        setUploading(`Uploading ${i + 1} of ${total}...`);
-        const processingTimeout = setTimeout(() => setUploading(`Processing ${i + 1} of ${total}...`), 800);
-        
-        const result = await uploadDocument(file);
-        clearTimeout(processingTimeout);
-        
-        setDocs((prev) => [
-          ...prev,
-          {
-            document_id: result.document_id,
-            filename: result.filename,
-            pages: result.pages,
-            chunks: result.chunks,
-          },
-        ]);
-      } catch (e: any) {
-        setError(e.message || `Upload failed for ${file.name}.`);
-      }
+  const handleUpload = useCallback(async (file: File) => {
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setError("Only PDF files are accepted.");
+      return;
     }
-    
-    setUploading("Done!");
-    setTimeout(() => {
-      setShowUpload(false);
+    if (file.size > 25 * 1024 * 1024) {
+      setError("File exceeds 25 MB limit.");
+      return;
+    }
+    try {
+      setUploading("uploading");
+      setTimeout(() => setUploading("processing"), 800);
+      const result = await uploadDocument(file);
+      setUploading("done");
+      setDocs((prev) => [
+        ...prev,
+        {
+          document_id: result.document_id,
+          filename: result.filename,
+          pages: result.pages,
+          chunks: result.chunks,
+        },
+      ]);
+      setTimeout(() => {
+        setShowUpload(false);
+        setUploading(null);
+      }, 800);
+    } catch (e: any) {
+      setError(e.message || "Upload failed.");
       setUploading(null);
-    }, 1000);
+    }
   }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        handleUpload(e.dataTransfer.files);
-      }
+      setDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file) handleUpload(file);
     },
     [handleUpload]
   );
 
-  /* ---- Delete doc ---- */
   const handleDelete = async (docId: string) => {
     try {
       await deleteDocument(docId);
@@ -158,111 +145,109 @@ export default function Home() {
       };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (e: any) {
-      const errMsg: Message = {
-        id: crypto.randomUUID(),
-        role: "ai",
-        content: e.message || "Something went wrong. Is the backend running?",
-      };
-      setMessages((prev) => [...prev, errMsg]);
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: "ai", content: e.message || "Something went wrong." },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleExampleClick = (q: string) => {
-    if (docs.length === 0) return;
-    setInput(q);
-  };
-
-  const confidenceColor = (label?: string) => {
-    if (label === "high") return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
-    if (label === "medium") return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-    return "bg-red-500/20 text-red-400 border-red-500/30";
-  };
-
   const examples = [
-    "What are the main topics covered in this document?",
-    "Summarize the key findings or conclusions.",
-    "What data or evidence is presented?",
+    "What are the main topics in this document?",
+    "Summarize the key conclusions.",
+    "What evidence or data is presented?",
   ];
 
   /* ---------------------------------------------------------------- */
-  /*  Render                                                           */
-  /* ---------------------------------------------------------------- */
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* ---- Mobile sidebar toggle ---- */}
+    <div className="flex h-screen overflow-hidden bg-canvas">
+      {/* Mobile toggle */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="fixed top-3 left-3 z-50 md:hidden p-2 rounded-lg bg-surface-raised border border-border"
+        className="fixed top-4 left-4 z-50 md:hidden w-9 h-9 rounded-lg bg-panel border border-subtle flex items-center justify-center"
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
       </button>
 
       {/* ============================================================ */}
       {/*  SIDEBAR                                                      */}
       {/* ============================================================ */}
-      <aside
-        className={`${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 fixed md:static z-40 w-[280px] h-full bg-surface-raised border-r border-border flex flex-col transition-transform duration-200`}
-      >
-        {/* Logo */}
-        <div className="p-5 border-b border-border">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
+      <aside className={`${
+        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+      } md:translate-x-0 fixed md:static z-40 w-[272px] h-full bg-panel flex flex-col transition-transform duration-200`}>
+
+        {/* Brand */}
+        <div className="px-5 pt-6 pb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-mint/80 to-sky/60 flex items-center justify-center shadow-lg shadow-mint/10">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  stroke="white"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="white" strokeWidth="1.5" strokeLinejoin="round"/>
+                <path d="M14 2v6h6M9 15h6M9 11h3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
-            <span className="text-lg font-semibold tracking-tight">DocuMind</span>
+            <div>
+              <h1 className="text-[15px] font-semibold tracking-tight text-zinc-100">DocuMind</h1>
+              <p className="text-[11px] text-muted leading-tight">Document Q&A</p>
+            </div>
           </div>
         </div>
 
-        {/* Upload button */}
-        <div className="p-4">
+        {/* Upload */}
+        <div className="px-4 mb-3">
           <button
             onClick={() => setShowUpload(true)}
-            className="w-full py-2.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-medium transition-colors"
+            className="w-full h-10 rounded-xl bg-mint/10 hover:bg-mint/[0.16] border border-mint/20 hover:border-mint/30 text-mint text-[13px] font-medium transition-all duration-200 flex items-center justify-center gap-2"
           >
-            Upload Document
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            Add document
           </button>
         </div>
 
-        {/* Doc list */}
-        <div className="flex-1 overflow-y-auto px-4 space-y-2">
+        {/* Document list */}
+        <div className="flex-1 overflow-y-auto px-3 space-y-1">
           {docs.length === 0 && (
-            <p className="text-zinc-500 text-sm text-center mt-8">
-              No documents yet
-            </p>
+            <div className="pt-12 text-center">
+              <div className="w-10 h-10 rounded-xl bg-raised mx-auto mb-3 flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" stroke="#71717a" strokeWidth="1.5" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <p className="text-[13px] text-muted">No documents yet</p>
+              <p className="text-[11px] text-zinc-600 mt-1">Upload a PDF to get started</p>
+            </div>
           )}
           {docs.map((doc) => (
             <div
               key={doc.document_id}
-              className="group p-3 rounded-lg bg-surface hover:bg-surface-overlay transition-colors"
+              className="group relative px-3 py-2.5 rounded-xl hover:bg-raised/70 transition-colors cursor-default"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{doc.filename}</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    {doc.pages} pages · {doc.chunks} chunks
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-coral/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#fb7185" strokeWidth="1.5" strokeLinejoin="round"/>
+                    <path d="M14 2v6h6" stroke="#fb7185" strokeWidth="1.5" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-medium text-zinc-200 truncate leading-tight">
+                    {doc.filename}
+                  </p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">
+                    {doc.pages} {doc.pages === 1 ? "page" : "pages"}, {doc.chunks} chunks
                   </p>
                 </div>
                 <button
                   onClick={() => handleDelete(doc.document_id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-all"
-                  title="Delete document"
+                  className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-md hover:bg-coral/15 flex items-center justify-center text-zinc-500 hover:text-coral transition-all shrink-0 mt-0.5"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                   </svg>
                 </button>
               </div>
@@ -271,175 +256,156 @@ export default function Home() {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-border">
-          <p className="text-[11px] text-zinc-600 text-center">
-            Powered by Gemini &amp; ChromaDB
-          </p>
+        <div className="px-5 py-4">
+          <div className="flex items-center gap-1.5 text-[10px] text-zinc-600">
+            <span className="w-1 h-1 rounded-full bg-mint/60" />
+            Gemini + ChromaDB
+          </div>
         </div>
       </aside>
 
       {/* ============================================================ */}
-      {/*  MAIN CHAT AREA                                               */}
+      {/*  MAIN                                                         */}
       {/* ============================================================ */}
       <main className="flex-1 flex flex-col min-w-0">
+
         {/* Error toast */}
         {error && (
-          <div className="absolute top-4 right-4 z-50 animate-fade-in bg-red-500/15 border border-red-500/30 text-red-400 px-4 py-2.5 rounded-lg text-sm max-w-sm">
-            {error}
+          <div className="absolute top-4 right-4 z-50 animate-enter">
+            <div className="bg-coral/10 border border-coral/20 text-coral px-4 py-2.5 rounded-xl text-[13px] max-w-sm backdrop-blur-sm">
+              {error}
+            </div>
           </div>
         )}
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6">
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center mb-5">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    stroke="#6366f1"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-              <h2 className="text-xl font-semibold mb-2">Upload a document and ask a question</h2>
-              <p className="text-zinc-500 text-sm mb-8 max-w-md">
-                DocuMind uses RAG with hallucination guardrails to answer your questions accurately from uploaded PDFs.
-              </p>
-              <div className="flex flex-wrap justify-center gap-2">
-                {examples.map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => handleExampleClick(q)}
-                    disabled={docs.length === 0}
-                    className="px-3.5 py-2 rounded-lg bg-surface-raised border border-border text-sm text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title={docs.length === 0 ? "Upload a document first" : ""}
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="max-w-3xl mx-auto space-y-4">
-            {messages.map((msg) => (
-              <div key={msg.id} className="animate-fade-in">
-                {msg.role === "user" ? (
-                  <div className="flex justify-end">
-                    <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-md bg-accent text-white text-sm">
-                      {msg.content}
-                    </div>
+        {/* Chat area */}
+        <div className="flex-1 overflow-y-auto">
+          {messages.length === 0 ? (
+            /* ---- Empty state ---- */
+            <div className="h-full flex items-center justify-center px-6">
+              <div className="max-w-lg w-full">
+                <div className="text-center mb-10">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-raised text-[11px] text-muted mb-6">
+                    <span className="w-1.5 h-1.5 rounded-full bg-mint animate-pulse-slow" />
+                    RAG-powered with guardrails
                   </div>
-                ) : (
-                  <div className="flex justify-start">
-                    <div className="max-w-[85%] space-y-2">
-                      {/* Hallucination warning */}
-                      {msg.hallucination_risk && (
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                            <path
-                              d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                          Hallucination risk detected — retrieved context may not be relevant
-                        </div>
-                      )}
+                  <h2 className="text-2xl font-semibold text-zinc-100 mb-2 tracking-tight">
+                    What would you like to know?
+                  </h2>
+                  <p className="text-[14px] text-muted leading-relaxed max-w-sm mx-auto">
+                    Upload a document, then ask anything.
+                    Every answer is cited with page numbers and scored for reliability.
+                  </p>
+                </div>
 
-                      {/* Answer bubble */}
-                      <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-surface-raised border border-border text-sm">
-                        <div className="prose-ai">
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
-                        </div>
-                      </div>
-
-                      {/* Confidence badge */}
-                      {msg.confidence_score !== undefined && (
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${confidenceColor(
-                              msg.confidence_label
-                            )}`}
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                msg.confidence_label === "high"
-                                  ? "bg-emerald-400"
-                                  : msg.confidence_label === "medium"
-                                  ? "bg-amber-400"
-                                  : "bg-red-400"
-                              }`}
-                            />
-                            {Math.round(msg.confidence_score * 100)}% confidence
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Sources */}
-                      {msg.sources && msg.sources.length > 0 && (
-                        <SourcesAccordion sources={msg.sources} />
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {/* Typing indicator */}
-            {loading && (
-              <div className="flex justify-start animate-fade-in">
-                <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-surface-raised border border-border">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce-dot" />
-                    <span className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce-dot [animation-delay:0.16s]" />
-                    <span className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce-dot [animation-delay:0.32s]" />
-                  </div>
+                <div className="space-y-2">
+                  {examples.map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => docs.length > 0 && setInput(q)}
+                      disabled={docs.length === 0}
+                      className="w-full text-left px-4 py-3 rounded-xl bg-panel hover:bg-raised border border-subtle/50 hover:border-subtle text-[13px] text-soft hover:text-zinc-200 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed group"
+                    >
+                      <span className="text-mint mr-2 opacity-50 group-hover:opacity-100 transition-opacity">→</span>
+                      {q}
+                    </button>
+                  ))}
                 </div>
               </div>
-            )}
+            </div>
+          ) : (
+            /* ---- Messages ---- */
+            <div className="max-w-2xl mx-auto px-5 py-8 space-y-6">
+              {messages.map((msg) => (
+                <div key={msg.id} className="animate-enter">
+                  {msg.role === "user" ? (
+                    <div className="flex justify-end">
+                      <div className="max-w-[75%] px-4 py-2.5 rounded-2xl rounded-tr-lg bg-raised text-[14px] text-zinc-200 leading-relaxed">
+                        {msg.content}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Hallucination warning */}
+                      {msg.hallucination_risk && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-coral/[0.06] border border-coral/15 text-coral text-[12px]">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 9v4m0 4h.01M12 3l9.5 16.5H2.5L12 3z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          Low relevance detected — the retrieved context may not fully support this answer
+                        </div>
+                      )}
 
-            <div ref={chatEndRef} />
-          </div>
+                      {/* Answer */}
+                      <div className="prose-answer">
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      </div>
+
+                      {/* Confidence + sources row */}
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {msg.confidence_score !== undefined && (
+                          <ConfidencePill
+                            score={msg.confidence_score}
+                            label={msg.confidence_label}
+                          />
+                        )}
+                        {msg.sources && msg.sources.length > 0 && (
+                          <SourcesToggle sources={msg.sources} />
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Thinking indicator */}
+              {loading && (
+                <div className="animate-enter flex items-center gap-2 text-muted text-[13px]">
+                  <span className="inline-block w-4 h-4 border-2 border-muted/30 border-t-mint rounded-full animate-spin" />
+                  Reading your documents...
+                </div>
+              )}
+
+              <div ref={chatEndRef} />
+            </div>
+          )}
         </div>
 
-        {/* Input bar */}
-        <div className="border-t border-border bg-surface p-4">
-          <div className="max-w-3xl mx-auto flex gap-3">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-              placeholder={docs.length === 0 ? "Upload a document first..." : "Ask a question about your documents..."}
-              disabled={loading || docs.length === 0}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-surface-raised border border-border text-sm placeholder:text-zinc-600 focus:outline-none focus:border-accent/50 disabled:opacity-50 transition-colors"
-            />
-            <button
-              onClick={handleSend}
-              disabled={loading || !input.trim() || docs.length === 0}
-              className="px-4 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-sm font-medium disabled:opacity-40 transition-colors"
-            >
-              Send
-            </button>
+        {/* ---- Input ---- */}
+        <div className="border-t border-subtle/40 bg-canvas/80 backdrop-blur-md px-4 py-4">
+          <div className="max-w-2xl mx-auto flex items-center gap-2">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                placeholder={
+                  docs.length === 0
+                    ? "Upload a document to start asking..."
+                    : "Ask about your documents..."
+                }
+                disabled={loading || docs.length === 0}
+                className="w-full h-11 px-4 pr-11 rounded-xl bg-panel border border-subtle/60 text-[14px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-mint/30 focus:ring-1 focus:ring-mint/10 disabled:opacity-40 transition-all"
+              />
+              <button
+                onClick={handleSend}
+                disabled={loading || !input.trim() || docs.length === 0}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-mint/90 hover:bg-mint flex items-center justify-center disabled:opacity-20 disabled:hover:bg-mint/90 transition-all"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                  <path d="M5 12h14M12 5l7 7-7 7" stroke="#101014" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
             {messages.length > 0 && (
               <button
                 onClick={() => setMessages([])}
-                className="px-3 py-2.5 rounded-xl border border-border text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+                className="w-11 h-11 rounded-xl border border-subtle/60 hover:border-subtle flex items-center justify-center text-muted hover:text-soft transition-all shrink-0"
                 title="Clear chat"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                  <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 10v8M14 10v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
             )}
@@ -452,64 +418,70 @@ export default function Home() {
       {/* ============================================================ */}
       {showUpload && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={() => !uploading && setShowUpload(false)}
         >
           <div
-            className="bg-surface-raised border border-border rounded-2xl p-6 w-full max-w-md mx-4 animate-fade-in"
+            className="bg-panel border border-subtle rounded-2xl w-full max-w-md mx-4 overflow-hidden animate-enter"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold mb-4">Upload Document</h3>
+            <div className="px-6 pt-6 pb-4">
+              <h3 className="text-[16px] font-semibold text-zinc-100">Add a document</h3>
+              <p className="text-[13px] text-muted mt-1">PDF files up to 25 MB</p>
+            </div>
 
-            {!uploading ? (
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-border hover:border-accent/40 rounded-xl p-10 text-center cursor-pointer transition-colors"
-              >
-                <svg className="mx-auto mb-3" width="36" height="36" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6h.1a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                    stroke="#6366f1"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+            <div className="px-6 pb-6">
+              {!uploading ? (
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`drop-zone ${dragging ? "dragging" : ""} border-2 border-dashed border-subtle rounded-xl p-8 text-center cursor-pointer`}
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-raised mx-auto mb-3 flex items-center justify-center">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 16V8m0 0l-3 3m3-3l3 3" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M20 16.7V17a4 4 0 01-4 4H8a4 4 0 01-4-4v-.3" stroke="#71717a" strokeWidth="1.5" strokeLinecap="round"/>
+                      <path d="M6.34 12.34a4 4 0 01-.22-5.46A4.5 4.5 0 0114.5 5a4.5 4.5 0 014.37 5.47A3 3 0 0120 16" stroke="#71717a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  <p className="text-[13px] text-soft">
+                    Drop a PDF here, or <span className="text-mint">browse</span>
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      if (files) Array.from(files).forEach(handleUpload);
+                    }}
                   />
-                </svg>
-                <p className="text-sm text-zinc-400 mb-1">
-                  Drag &amp; drop PDFs or click to browse
-                </p>
-                <p className="text-xs text-zinc-600">Max 10 MB per file</p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                      handleUpload(e.target.files);
-                    }
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="py-8 text-center">
-                <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-sm text-zinc-300">
-                  {uploading}
-                </p>
-              </div>
-            )}
+                </div>
+              ) : (
+                <div className="py-10 text-center">
+                  <div className="w-10 h-10 border-2 border-mint/40 border-t-mint rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-[13px] text-zinc-300">
+                    {uploading === "uploading" && "Uploading..."}
+                    {uploading === "processing" && "Extracting & embedding..."}
+                    {uploading === "done" && "Done"}
+                  </p>
+                </div>
+              )}
+            </div>
 
             {!uploading && (
-              <button
-                onClick={() => setShowUpload(false)}
-                className="mt-4 w-full py-2 rounded-lg border border-border text-zinc-400 hover:text-zinc-200 text-sm transition-colors"
-              >
-                Cancel
-              </button>
+              <div className="border-t border-subtle/60 px-6 py-3 flex justify-end">
+                <button
+                  onClick={() => setShowUpload(false)}
+                  className="px-4 h-8 rounded-lg text-[13px] text-muted hover:text-soft transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -519,38 +491,57 @@ export default function Home() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Sources Accordion                                                  */
+/*  Confidence Pill                                                    */
 /* ------------------------------------------------------------------ */
-function SourcesAccordion({ sources }: { sources: Source[] }) {
+function ConfidencePill({ score, label }: { score: number; label?: string }) {
+  const pct = Math.round(score * 100);
+  const colorMap: Record<string, { bg: string; text: string; dot: string }> = {
+    high: { bg: "bg-mint/[0.08]", text: "text-mint", dot: "bg-mint" },
+    medium: { bg: "bg-amber/[0.08]", text: "text-amber", dot: "bg-amber" },
+    low: { bg: "bg-coral/[0.08]", text: "text-coral", dot: "bg-coral" },
+  };
+  const c = colorMap[label || "low"] || colorMap.low;
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium ${c.bg} ${c.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+      {pct}% confidence
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sources Toggle                                                     */
+/* ------------------------------------------------------------------ */
+function SourcesToggle({ sources }: { sources: Source[] }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
+    <div>
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-2 text-xs text-zinc-400 hover:text-zinc-300 transition-colors"
+        className="inline-flex items-center gap-1.5 text-[11px] text-muted hover:text-soft transition-colors"
       >
-        <span>
-          View Sources ({sources.length})
-        </span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+          <path d="M9 12h6M9 16h6M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-7-6z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        {sources.length} sources
         <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          className={`transition-transform ${open ? "rotate-180" : ""}`}
+          width="10" height="10" viewBox="0 0 24 24" fill="none"
+          className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
         >
-          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
         </svg>
       </button>
+
       {open && (
-        <div className="border-t border-border px-3 py-2 space-y-2 max-h-60 overflow-y-auto">
+        <div className="mt-2 space-y-1.5 animate-enter">
           {sources.map((src, i) => (
-            <div key={i} className="text-xs text-zinc-500">
-              <span className="inline-block px-1.5 py-0.5 rounded bg-accent/15 text-accent text-[10px] font-medium mr-1.5">
-                Page {src.page_number}
+            <div key={i} className="flex gap-2 text-[12px] leading-relaxed">
+              <span className="shrink-0 px-1.5 py-0.5 rounded bg-sky/10 text-sky text-[10px] font-mono font-medium h-fit mt-0.5">
+                p.{src.page_number}
               </span>
-              {src.text}
+              <span className="text-zinc-500">{src.text}</span>
             </div>
           ))}
         </div>

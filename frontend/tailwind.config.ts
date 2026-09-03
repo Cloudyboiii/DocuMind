@@ -5,34 +5,29 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ['"DM Sans"', "system-ui", "sans-serif"],
+        mono: ['"JetBrains Mono"', "monospace"],
       },
       colors: {
-        surface: {
-          DEFAULT: "#0f1117",
-          raised: "#1a1b23",
-          overlay: "#242530",
-        },
-        accent: {
-          DEFAULT: "#6366f1",
-          hover: "#818cf8",
-        },
-        border: {
-          DEFAULT: "#2a2b35",
-        },
+        canvas: "#101014",
+        panel: "#18181e",
+        raised: "#222230",
+        subtle: "#2a2a3a",
+        muted: "#71717a",
+        soft: "#a1a1aa",
+        mint: { DEFAULT: "#34d399", dim: "rgba(52,211,153,0.12)" },
+        coral: { DEFAULT: "#fb7185", dim: "rgba(251,113,133,0.12)" },
+        sky: { DEFAULT: "#38bdf8", dim: "rgba(56,189,248,0.10)" },
+        amber: { DEFAULT: "#fbbf24", dim: "rgba(251,191,36,0.12)" },
       },
       animation: {
-        "fade-in": "fadeIn 0.3s ease-out",
-        "bounce-dot": "bounceDot 1.4s infinite ease-in-out both",
+        "enter": "enter 0.35s ease-out",
+        "pulse-slow": "pulse 3s ease-in-out infinite",
       },
       keyframes: {
-        fadeIn: {
-          "0%": { opacity: "0", transform: "translateY(8px)" },
+        enter: {
+          "0%": { opacity: "0", transform: "translateY(6px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
-        },
-        bounceDot: {
-          "0%, 80%, 100%": { transform: "scale(0)" },
-          "40%": { transform: "scale(1)" },
         },
       },
     },

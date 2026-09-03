@@ -2,53 +2,63 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap");
+
+* {
+  box-sizing: border-box;
+}
 
 body {
-  font-family: "Inter", system-ui, sans-serif;
-  background-color: #0f1117;
+  background: #101014;
   color: #e4e4e7;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #3f3f46;
-  border-radius: 3px;
+::selection {
+  background: rgba(52, 211, 153, 0.25);
 }
 
-/* Markdown prose inside AI answers */
-.prose-ai h1,
-.prose-ai h2,
-.prose-ai h3 {
-  font-weight: 600;
-  margin-top: 1em;
-  margin-bottom: 0.4em;
-  color: #f4f4f5;
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a4a; }
+
+/* ---- Markdown inside AI answers ---- */
+.prose-answer {
+  font-size: 0.9rem;
+  line-height: 1.72;
+  color: #d4d4d8;
 }
-.prose-ai p {
-  margin-bottom: 0.6em;
-  line-height: 1.65;
-}
-.prose-ai ul,
-.prose-ai ol {
-  margin-left: 1.2em;
-  margin-bottom: 0.6em;
-}
-.prose-ai li {
-  margin-bottom: 0.25em;
-}
-.prose-ai code {
+.prose-answer p { margin-bottom: 0.65em; }
+.prose-answer p:last-child { margin-bottom: 0; }
+.prose-answer strong { color: #f4f4f5; font-weight: 600; }
+.prose-answer ul, .prose-answer ol { margin: 0.4em 0 0.6em 1.25em; }
+.prose-answer li { margin-bottom: 0.2em; }
+.prose-answer code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.82em;
   background: #1e1e2e;
-  padding: 0.15em 0.35em;
+  padding: 0.15em 0.4em;
   border-radius: 4px;
-  font-size: 0.88em;
+  color: #34d399;
 }
-.prose-ai strong {
+.prose-answer h1, .prose-answer h2, .prose-answer h3 {
   color: #f4f4f5;
+  font-weight: 600;
+  margin: 1.1em 0 0.4em;
+}
+.prose-answer blockquote {
+  border-left: 2px solid #34d399;
+  padding-left: 1em;
+  margin: 0.6em 0;
+  color: #a1a1aa;
+}
+
+/* ---- Upload drop zone hover ---- */
+.drop-zone {
+  transition: border-color 0.2s, background 0.2s;
+}
+.drop-zone:hover, .drop-zone.dragging {
+  border-color: #34d399;
+  background: rgba(52, 211, 153, 0.04);
 }

@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DocuMind — RAG Document Q&A",
+  title: "DocuMind — Document Q&A",
   description:
-    "Upload documents and ask questions with AI-powered retrieval, confidence scoring, and hallucination guardrails.",
+    "Upload documents, ask questions, get cited answers with confidence scoring and hallucination guardrails.",
 };
 
 export default function RootLayout({
@@ -14,7 +14,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body>{children}</body>
     </html>
   );
 }

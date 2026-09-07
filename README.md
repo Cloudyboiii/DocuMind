@@ -29,7 +29,10 @@ If the answer isn't in the document, DocuMind says so — and its confidence sco
 - **Confidence Badges** — Green (70-100%), Yellow (40-69%), Red (0-39%) for answer trustworthiness
 - **Multi-Document Support** — Upload and query across multiple PDFs at once
 - **Source Transparency** — Expandable panel shows exact text chunks used for each answer
-
+- **Query Analytics** — per-query latency tracking (retrieval, generation, total), chunk distances, session-level metrics
+- **Multi-Document Selection** — query specific documents via sidebar checkboxes
+- **Conversation Memory** — follow-up questions work with 3-turn context window
+- **Session Persistence** — chat history survives page refresh via sessionStorage
 ---
 
 ## Architecture

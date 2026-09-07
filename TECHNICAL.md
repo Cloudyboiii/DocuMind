@@ -30,17 +30,17 @@ Think of it like an open-book test. Instead of forcing the AI to memorize everyt
 graph TD
     User([User / Browser])
     
-    subgraph Frontend (Next.js)
+    subgraph Frontend [Frontend Next.js]
         UI[User Interface & Chat]
     end
     
-    subgraph Backend (FastAPI / Python)
+    subgraph Backend [Backend FastAPI Python]
         API[API Server]
         Upload[Upload & Chunking]
         Query[Search & Answer]
     end
     
-    subgraph External Services
+    subgraph ExternalServices [External Services]
         Gemini[Google Gemini AI]
         DB[(ChromaDB Vector Database)]
     end

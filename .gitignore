@@ -17,3 +17,14 @@ frontend/.env.production
 .idea/
 *.swp
 .DS_Store
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Virtual Environments
+venv/
+env/
+.venv/
+.env

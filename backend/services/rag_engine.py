@@ -1,3 +1,4 @@
+import time
 import google.generativeai as genai
 from config import get_settings
 from services.embedder import embed_query
@@ -17,19 +18,24 @@ RULES:
 6. If multiple pages discuss the topic, synthesize the information and cite all relevant pages."""
 
 
-def query_documents(question: str, session_id: str) -> dict:
+def query_documents(question: str, session_id: str, document_ids: list[str] | None = None, conversation_history: list[dict] | None = None) -> dict:
     """Run the full RAG pipeline: embed query -> retrieve -> generate answer."""
+    t0 = time.time()
     # Step 1: Embed the question
     query_embedding = embed_query(question)
 
     # Step 2: Retrieve top chunks from vector store
-    results = vector_query(session_id, query_embedding, n_results=settings.TOP_K_RESULTS)
+    results = vector_query(session_id, query_embedding, n_results=settings.TOP_K_RESULTS, document_ids=document_ids)
+    t1 = time.time()
+    retrieval_latency_ms = int((t1 - t0) * 1000)
 
     if not results["documents"] or not results["documents"][0]:
         return {
             "answer": "I don't have enough information in the uploaded documents to answer this question.",
             "sources": [],
             "distances": [],
+            "retrieval_latency_ms": retrieval_latency_ms,
+            "generation_latency_ms": 0,
         }
 
     documents = results["documents"][0]
@@ -43,17 +49,28 @@ def query_documents(question: str, session_id: str) -> dict:
 
     context = "\n\n---\n\n".join(context_parts)
 
+    history_prompt = ""
+    if conversation_history:
+        recent_history = conversation_history[-6:]
+        history_parts = []
+        for msg in recent_history:
+            role = "User" if msg.get("role") == "user" else "Assistant"
+            history_parts.append(f"{role}: {msg.get('content')}")
+        if history_parts:
+            history_prompt = "Previous conversation:\n" + "\n".join(history_parts) + "\n\n"
+
     user_prompt = f"""Context from uploaded documents:
 
 {context}
 
 ---
 
-Question: {question}
+{history_prompt}Question: {question}
 
 Answer the question using ONLY the context above. Cite page numbers."""
 
     # Step 4: Call Gemini
+    t2 = time.time()
     model = genai.GenerativeModel(
         model_name=settings.GEMINI_MODEL,
         system_instruction=SYSTEM_PROMPT,
@@ -61,6 +78,8 @@ Answer the question using ONLY the context above. Cite page numbers."""
 
     response = model.generate_content(user_prompt)
     answer = response.text
+    t3 = time.time()
+    generation_latency_ms = int((t3 - t2) * 1000)
 
     # Step 5: Build sources
     sources = []
@@ -75,4 +94,6 @@ Answer the question using ONLY the context above. Cite page numbers."""
         "answer": answer,
         "sources": sources,
         "distances": distances,
+        "retrieval_latency_ms": retrieval_latency_ms,
+        "generation_latency_ms": generation_latency_ms,
     }

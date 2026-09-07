@@ -30,12 +30,15 @@ def add_chunks(session_id: str, chunks: list[dict], embeddings: list[list[float]
     )
 
 
-def query(session_id: str, query_embedding: list[float], n_results: int = 8) -> dict:
+def query(session_id: str, query_embedding: list[float], n_results: int = 8, document_ids: list[str] | None = None) -> dict:
     """Query the vector store for the most similar chunks."""
+    where_clause = {"document_id": {"$in": document_ids}} if document_ids else None
+    
     results = _get_collection(session_id).query(
         query_embeddings=[query_embedding],
         n_results=n_results,
         include=["documents", "metadatas", "distances"],
+        where=where_clause
     )
     return results
 

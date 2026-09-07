@@ -28,11 +28,18 @@ export async function uploadDocument(file: File) {
   return request("/api/upload", { method: "POST", body: formData });
 }
 
-export async function queryDocument(question: string) {
+export async function queryDocument(question: string, documentIds?: string[], conversationHistory?: any[]) {
+  const body: any = { question };
+  if (documentIds && documentIds.length > 0) {
+    body.document_ids = documentIds;
+  }
+  if (conversationHistory && conversationHistory.length > 0) {
+    body.conversation_history = conversationHistory;
+  }
   return request("/api/query", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -42,6 +49,10 @@ export async function getDocuments() {
 
 export async function deleteDocument(documentId: string) {
   return request(`/api/documents/${documentId}`, { method: "DELETE" });
+}
+
+export async function getMetrics() {
+  return request("/api/metrics");
 }
 
 export async function healthCheck() {

@@ -7,6 +7,7 @@ import {
   queryDocument,
   getDocuments,
   deleteDocument,
+  getMetrics,
 } from "@/lib/api";
 
 /* ------------------------------------------------------------------ */
@@ -33,6 +34,11 @@ interface Message {
   confidence_label?: string;
   hallucination_risk?: boolean;
   sources?: Source[];
+  retrieval_latency_ms?: number;
+  generation_latency_ms?: number;
+  total_latency_ms?: number;
+  top_chunk_distances?: number[];
+  chunks_retrieved?: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -41,6 +47,9 @@ interface Message {
 export default function Home() {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
+  const [metricsModalOpen, setMetricsModalOpen] = useState(false);
+  const [metricsData, setMetricsData] = useState<any>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
@@ -56,9 +65,17 @@ export default function Home() {
     getDocuments()
       .then((res) => setDocs(res.documents))
       .catch(() => {});
+      
+    const saved = sessionStorage.getItem("documind_messages");
+    if (saved) {
+      try {
+        setMessages(JSON.parse(saved));
+      } catch (e) {}
+    }
   }, []);
 
   useEffect(() => {
+    sessionStorage.setItem("documind_messages", JSON.stringify(messages));
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
@@ -128,12 +145,16 @@ export default function Home() {
     if (!q || loading) return;
 
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: q };
-    setMessages((prev) => [...prev, userMsg]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setInput("");
     setLoading(true);
 
     try {
-      const res = await queryDocument(q);
+      const history = messages.map(m => ({ role: m.role, content: m.content }));
+      const docsToQuery = selectedDocs.length > 0 ? selectedDocs : undefined;
+      const res = await queryDocument(q, docsToQuery, history);
+      
       const aiMsg: Message = {
         id: crypto.randomUUID(),
         role: "ai",
@@ -142,6 +163,11 @@ export default function Home() {
         confidence_label: res.confidence_label,
         hallucination_risk: res.hallucination_risk,
         sources: res.sources,
+        retrieval_latency_ms: res.retrieval_latency_ms,
+        generation_latency_ms: res.generation_latency_ms,
+        total_latency_ms: res.total_latency_ms,
+        top_chunk_distances: res.top_chunk_distances,
+        chunks_retrieved: res.chunks_retrieved,
       };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (e: any) {
@@ -227,6 +253,18 @@ export default function Home() {
               className="group relative px-3 py-2.5 rounded-xl hover:bg-raised/70 transition-colors cursor-default"
             >
               <div className="flex items-start gap-2.5">
+                <input 
+                  type="checkbox"
+                  className="mt-1.5 shrink-0 rounded border-subtle/50 text-mint focus:ring-mint/20"
+                  checked={selectedDocs.includes(doc.document_id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedDocs([...selectedDocs, doc.document_id]);
+                    } else {
+                      setSelectedDocs(selectedDocs.filter(id => id !== doc.document_id));
+                    }
+                  }}
+                />
                 <div className="w-7 h-7 rounded-lg bg-coral/10 flex items-center justify-center shrink-0 mt-0.5">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                     <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#fb7185" strokeWidth="1.5" strokeLinejoin="round"/>
@@ -267,6 +305,22 @@ export default function Home() {
       {/*  MAIN                                                         */}
       {/* ============================================================ */}
       <main className="flex-1 flex flex-col min-w-0">
+
+        {/* Header */}
+        <div className="h-14 border-b border-subtle/30 flex items-center justify-end px-4">
+          <button
+            onClick={async () => {
+              try {
+                const res = await getMetrics();
+                setMetricsData(res);
+                setMetricsModalOpen(true);
+              } catch (e) {}
+            }}
+            className="px-3 py-1.5 rounded-lg text-[12px] bg-panel border border-subtle/60 text-muted hover:text-soft hover:bg-raised transition-colors"
+          >
+            Metrics
+          </button>
+        </div>
 
         {/* Error toast */}
         {error && (
@@ -352,6 +406,10 @@ export default function Home() {
                           <SourcesToggle sources={msg.sources} />
                         )}
                       </div>
+
+                      {msg.retrieval_latency_ms !== undefined && (
+                        <AnalyticsToggle msg={msg} />
+                      )}
                     </div>
                   )}
                 </div>
@@ -485,6 +543,55 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* ============================================================ */}
+      {/*  METRICS MODAL                                                */}
+      {/* ============================================================ */}
+      {metricsModalOpen && metricsData && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setMetricsModalOpen(false)}
+        >
+          <div
+            className="bg-panel border border-subtle rounded-2xl w-full max-w-sm mx-4 overflow-hidden animate-enter"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 pt-6 pb-4">
+              <h3 className="text-[16px] font-semibold text-zinc-100">Session Metrics</h3>
+            </div>
+            <div className="px-6 pb-6 space-y-4 text-[13px] text-muted">
+              <div className="flex justify-between">
+                <span>Total Queries:</span>
+                <span className="text-zinc-200">{metricsData.total_queries}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Avg Confidence:</span>
+                <span className="text-zinc-200">{Math.round((metricsData.avg_confidence_score || 0) * 100)}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Avg Total Latency:</span>
+                <span className="text-zinc-200">{metricsData.avg_total_latency_ms} ms</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Avg Retrieval Latency:</span>
+                <span className="text-zinc-200">{metricsData.avg_retrieval_latency_ms} ms</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Hallucinations Flagged:</span>
+                <span className="text-coral">{metricsData.hallucination_flagged_count}</span>
+              </div>
+            </div>
+            <div className="border-t border-subtle/60 px-6 py-3 flex justify-end">
+              <button
+                onClick={() => setMetricsModalOpen(false)}
+                className="px-4 h-8 rounded-lg text-[13px] bg-raised text-zinc-300 hover:text-white transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -543,6 +650,54 @@ function SourcesToggle({ sources }: { sources: Source[] }) {
               <span className="text-zinc-500">{src.text}</span>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Analytics Toggle                                                   */
+/* ------------------------------------------------------------------ */
+function AnalyticsToggle({ msg }: { msg: Message }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="mt-2 border-t border-subtle/30 pt-2">
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-1.5 text-[11px] text-muted hover:text-soft transition-colors"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+          <path d="M12 20V10M18 20V4M6 20v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        Query Analytics
+        <svg
+          width="10" height="10" viewBox="0 0 24 24" fill="none"
+          className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        >
+          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-2 animate-enter text-[11px] text-muted">
+          <div className="flex gap-4">
+            <div>Retrieval: <span className="text-zinc-300">{msg.retrieval_latency_ms}ms</span></div>
+            <div>Generation: <span className="text-zinc-300">{msg.generation_latency_ms}ms</span></div>
+            <div>Total: <span className="text-zinc-300">{msg.total_latency_ms}ms</span></div>
+          </div>
+          <div className="flex gap-4 items-center">
+            <div>Chunks: <span className="text-zinc-300">{msg.chunks_retrieved}</span></div>
+            <div className="flex gap-1 items-center">
+              Distances: 
+              {msg.top_chunk_distances?.map((d, i) => (
+                <span key={i} className="px-1.5 py-0.5 rounded bg-raised text-[10px] text-zinc-400">
+                  {d.toFixed(3)}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
